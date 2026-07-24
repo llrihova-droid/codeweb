@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CodeWeb — write, run, publish</title>
+<meta name="description" content="CodeWeb is a browser code editor. Write HTML, CSS, JavaScript, JSON, C++ and Lua, run a live preview, and publish a project page." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%237C5CFC%22/><path d=%22M8 8l-4 4 4 4M16 8l4 4-4 4M14 6l-4 12%22 stroke=%22%23fff%22 stroke-width=%222%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 6l-4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="brand-name">CodeWeb</span>
+    </div>
+
+    <nav class="file-tabs" id="fileTabs" role="tablist" aria-label="Open files"></nav>
+
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="addFileBtn" title="Add file">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Add file
+      </button>
+      <button class="btn btn-accent" id="runBtn" title="Run">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6 4l14 8-14 8V4z" fill="currentColor"/></svg>
+        Run
+      </button>
+      <button class="btn btn-pro" id="proBtn" title="CodeWeb Pro">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 2l2.6 6.6L21 9.3l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.9l-5-4.6 6.4-.7L12 2z" fill="currentColor"/></svg>
+        Pro
+      </button>
+      <button class="btn btn-publish" id="publishBtn" title="Publish">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3v12M7 8l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Publish
+      </button>
+    </div>
+  </header>
+
+  <!-- Main workspace -->
+  <main class="workspace">
+
+    <!-- Editor pane -->
+    <section class="pane editor-pane">
+      <div class="pane-head">
+        <span class="pane-title" id="activeFileLabel">index.html</span>
+        <span class="pane-sub" id="activeFileType">HTML</span>
+      </div>
+      <div class="editor-shell">
+        <div class="gutter" id="gutter" aria-hidden="true"></div>
+        <textarea id="editor" class="editor" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+      </div>
+    </section>
+
+    <!-- Output pane -->
+    <section class="pane output-pane">
+      <div class="output-tabs" role="tablist" aria-label="Output views">
+        <button class="output-tab is-active" data-view="preview" role="tab" aria-selected="true">Preview</button>
+        <button class="output-tab" data-view="console" role="tab" aria-selected="false">Console</button>
+      </div>
+
+      <div class="output-view is-active" id="view-preview">
+        <div class="browser-chrome">
+          <span class="chrome-dot"></span><span class="chrome-dot"></span><span class="chrome-dot"></span>
+          <span class="chrome-url" id="previewUrl">preview</span>
+        </div>
+        <iframe id="previewFrame" title="Live preview" sandbox="allow-scripts allow-modals"></iframe>
+      </div>
+
+      <div class="output-view" id="view-console">
+        <div class="console-log" id="consoleLog">
+          <p class="console-empty">Click <strong>Run</strong> to check this file for issues.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="statusbar">
+    <span id="statusMsg">Ready.</span>
+    <span class="status-right" id="proStatus">Free plan</span>
+  </footer>
+</div>
+
+<!-- Add file modal -->
+<div class="modal-overlay" id="addFileOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addFileTitle">
+    <h2 id="addFileTitle">Add file</h2>
+    <p class="modal-sub">Choose a file type, then name the file.</p>
+    <div class="type-grid" id="typeGrid"></div>
+    <label class="field-label" for="newFileName">File name</label>
+    <input type="text" id="newFileName" class="text-input" placeholder="e.g. helpers.js">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelAddFile">Cancel</button>
+      <button class="btn btn-accent" id="confirmAddFile">Add file</button>
+    </div>
+  </div>
+</div>
+
+<!-- Publish modal -->
+<div class="modal-overlay" id="publishOverlay">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="publishTitle">
+    <h2 id="publishTitle">Publish your site</h2>
+    <p class="modal-sub">Fill in the details, then press Done to go live.</p>
+
+    <label class="field-label" for="siteName">Site name</label>
+    <input type="text" id="siteName" class="text-input" placeholder="My little project">
+
+    <label class="field-label" for="siteSlug">Site URL</label>
+    <div class="url-row">
+      <span class="url-prefix">https://</span>
+      <input type="text" id="siteSlug" class="text-input url-slug" placeholder="my-little-project">
+      <select id="siteDomain" class="text-input url-domain">
+        <option value=".cwebproject">.cwebproject</option>
+        <option value=".cweb-pro" data-pro="1">.cweb-pro</option>
+        <option value=".com" data-pro="1">.com</option>
+        <option value=".net" data-pro="1">.net</option>
+      </select>
+    </div>
+    <p class="hint" id="domainHint">Pro domains are marked with a star and unlock after upgrading.</p>
+
+    <label class="field-label">Icon</label>
+    <div class="icon-grid" id="iconGrid"></div>
+
+    <label class="field-label" for="siteDescription">Description</label>
+    <textarea id="siteDescription" class="text-input textarea-input" rows="3" placeholder="What is this site about?"></textarea>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelPublish">Cancel</button>
+      <button class="btn btn-publish" id="confirmPublish">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Published site view -->
+<div class="published-overlay" id="publishedOverlay">
+  <div class="published-page">
+    <div class="browser-chrome published-chrome">
+      <span class="chrome-dot"></span><span class="chrome-dot"></span><span class="chrome-dot"></span>
+      <span class="chrome-url" id="publishedUrl">published</span>
+      <button class="chrome-close" id="closePublished" title="Back to editor">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="published-hero">
+      <div class="published-icon" id="publishedIcon"></div>
+      <h1 id="publishedName">Site name</h1>
+      <p id="publishedDesc">Description</p>
+      <div class="published-actions">
+        <button class="btn btn-accent" id="downloadProject">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3v12M7 12l5 5 5-5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Download .cwebproject
+        </button>
+        <button class="btn btn-ghost" id="backToEditor">Back to editor</button>
+      </div>
+    </div>
+    <div class="published-frame-wrap">
+      <iframe id="publishedFrame" title="Published site preview" sandbox="allow-scripts allow-modals"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Pro modal -->
+<div class="modal-overlay" id="proOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="proTitle">
+    <h2 id="proTitle">CodeWeb Pro</h2>
+    <p class="modal-sub">Unlock <strong>.cweb-pro</strong>, <strong>.com</strong> and <strong>.net</strong> publishing.</p>
+    <div class="price-tag">$4.99 <span>one time</span></div>
+    <p class="hint">This button is a demo control only. It does not charge a card or move real money — it just flips the Pro flag in this project so you can see how the upgraded flow looks.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelPro">Cancel</button>
+      <button class="btn btn-pro" id="confirmPro">Simulate purchase</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

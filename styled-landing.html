@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Styled landing — no separate CSS file</title>
+<style>
+  /* Everything below lives inside this one HTML file. */
+  :root{
+    --bg: #12131a;
+    --panel: #1b1d29;
+    --accent: #7c5cfc;
+    --teal: #24d3c4;
+    --text: #ecebf4;
+    --dim: #9a9bb0;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header{
+    padding: 90px 20px 60px;
+    text-align: center;
+    background: radial-gradient(circle at 50% 0%, #7c5cfc22, transparent 60%);
+  }
+  header h1{
+    font-size: 2.6rem;
+    margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p{ color: var(--dim); max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+  .cards{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 20px 80px;
+  }
+  .card{
+    background: var(--panel);
+    border: 1px solid #2c2e3d;
+    border-radius: 12px;
+    padding: 22px;
+  }
+  .card h3{ margin: 0 0 8px; font-size: 1rem; }
+  .card p{ margin: 0; color: var(--dim); font-size: 0.9rem; line-height: 1.5; }
+  .dot{
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--teal); margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>One file. HTML and CSS together.</h1>
+    <p>This whole page — layout, gradient, cards, spacing — is styled from the &lt;style&gt; block above. No style.css needed.</p>
+  </header>
+
+  <section class="cards">
+    <div class="card"><div class="dot"></div><h3>Single file</h3><p>Open this in CodeWeb and hit Run — the styling shows up immediately.</p></div>
+    <div class="card"><div class="dot"></div><h3>Portable</h3><p>Copy the file anywhere and it still looks the same, since nothing external is required.</p></div>
+    <div class="card"><div class="dot"></div><h3>Easy to tweak</h3><p>Edit colors and spacing right inside the same file you're already looking at.</p></div>
+  </section>
+</body>
+</html>

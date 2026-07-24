@@ -39,9 +39,20 @@
         <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 2l2.6 6.6L21 9.3l-5 4.6L17.4 21 12 17.3 6.6 21 8 13.9l-5-4.6 6.4-.7L12 2z" fill="currentColor"/></svg>
         Pro
       </button>
+      <button class="btn btn-ghost" id="tutorialBtn" title="Tutorial">
+        <svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 9l5 3-5 3V9z" fill="currentColor"/></svg>
+        Tutorial
+      </button>
       <button class="btn btn-publish" id="publishBtn" title="Publish">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3v12M7 8l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Publish
+      </button>
+      <button class="auth-chip" id="authChip" title="Account">
+        <span class="auth-avatar" id="authAvatar">G</span>
+        <span class="auth-info">
+          <span class="auth-name" id="authName">Guest</span>
+          <span class="auth-level" id="authLevel">Log in</span>
+        </span>
       </button>
     </div>
   </header>
@@ -180,6 +191,139 @@
       <button class="btn btn-ghost" id="cancelPro">Cancel</button>
       <button class="btn btn-pro" id="confirmPro">Simulate purchase</button>
     </div>
+  </div>
+</div>
+
+<!-- Account overlay -->
+<div class="modal-overlay" id="accountOverlay">
+  <div class="modal modal-wide account-modal" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+    <div class="tutorial-head">
+      <h2 id="accountTitle">Your account</h2>
+      <button class="chrome-close" id="closeAccount" title="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="account-layout">
+      <nav class="account-menu">
+        <button class="account-menu-item is-active" data-account-view="profile">Change profile or upload profile</button>
+        <button class="account-menu-item" data-account-view="name">Change name with emojis or icons</button>
+        <button class="account-menu-item" data-account-view="settings">Settings</button>
+        <button class="account-menu-item account-logout" id="accountLogout">Log out</button>
+      </nav>
+
+      <div class="account-content">
+        <!-- Profile picture -->
+        <div class="account-view is-active" id="accountView-profile">
+          <div class="profile-preview" id="profilePreview">G</div>
+          <label class="field-label">Pick an icon avatar</label>
+          <div class="icon-grid" id="profileIconGrid"></div>
+          <label class="field-label">Or upload your own image</label>
+          <label class="upload-drop upload-drop-compact">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Upload profile photo</span>
+            <small>Stored in this browser only.</small>
+            <input type="file" accept="image/*" id="profileImageInput" style="display:none">
+          </label>
+        </div>
+
+        <!-- Display name -->
+        <div class="account-view" id="accountView-name">
+          <label class="field-label" for="accountNameInput">Display name</label>
+          <input type="text" id="accountNameInput" class="text-input" placeholder="Your name">
+          <label class="field-label">Add an emoji or icon</label>
+          <div class="emoji-grid" id="emojiGrid"></div>
+          <button class="btn btn-accent auth-submit" id="saveAccountName">Save name</button>
+        </div>
+
+        <!-- Settings -->
+        <div class="account-view" id="accountView-settings">
+          <label class="field-label">Appearance</label>
+          <div class="theme-row">
+            <button class="theme-option" data-theme="auto">Auto</button>
+            <button class="theme-option" data-theme="light">Light</button>
+            <button class="theme-option" data-theme="dark">Dark</button>
+          </div>
+          <p class="hint">CodeWeb isn't actually reading a light/dark setting from your Google account — there's no real Google sign-in behind the demo login. "Auto" instead follows your browser/OS light-or-dark preference, which is what most signed-in apps go by anyway. Pick Light or Dark here to override it.</p>
+
+          <label class="field-label">Account info</label>
+          <div class="account-info" id="accountInfoBox"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Auth modal -->
+<div class="modal-overlay" id="authOverlay">
+  <div class="modal modal-wide auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+
+    <!-- Main sign-in view -->
+    <div class="auth-view is-active" id="authView-main">
+      <h2 id="authTitle">Log in to CodeWeb</h2>
+      <p class="modal-sub">You need an account to publish a site or open the Tutorial.</p>
+
+      <div class="oauth-col">
+        <button class="oauth-btn" data-provider="Google"><span class="oauth-badge oauth-google">G</span>Continue with Google</button>
+        <button class="oauth-btn" data-provider="GitHub"><span class="oauth-badge oauth-github">gh</span>Continue with GitHub</button>
+        <button class="oauth-btn" data-provider="Apple"><span class="oauth-badge oauth-apple"></span>Continue with Apple</button>
+        <button class="oauth-btn" data-provider="DuckDuckGo"><span class="oauth-badge oauth-ddg">DDG</span>Continue with DuckDuckGo</button>
+      </div>
+
+      <div class="auth-divider"><span>or</span></div>
+
+      <label class="field-label" for="authEmail">Email</label>
+      <input type="email" id="authEmail" class="text-input" placeholder="you@example.com">
+      <label class="field-label" for="authUsername">Username</label>
+      <input type="text" id="authUsername" class="text-input" placeholder="Pick a username">
+      <label class="field-label" for="authPassword">Password</label>
+      <input type="password" id="authPassword" class="text-input" placeholder="••••••••">
+
+      <button class="btn btn-accent auth-submit" id="authSubmit">Continue</button>
+      <button class="btn btn-ghost auth-sso-link" id="ssoLink">Continue with SSO</button>
+      <p class="hint">Demo sign-in: nothing here is sent to a real server. It creates a local profile in this browser so you can see the leveling and tutorial-gating flow.</p>
+    </div>
+
+    <!-- SSO: email view -->
+    <div class="auth-view" id="authView-ssoEmail">
+      <h2>Continue with SSO</h2>
+      <p class="modal-sub">Enter your work email and we'll send a verification code.</p>
+      <label class="field-label" for="ssoEmail">Email</label>
+      <input type="email" id="ssoEmail" class="text-input" placeholder="you@company.com">
+      <button class="btn btn-accent auth-submit" id="ssoSendCode">Send code</button>
+      <button class="btn btn-ghost auth-back" id="ssoBackFromEmail">Back</button>
+    </div>
+
+    <!-- SSO: code view -->
+    <div class="auth-view" id="authView-ssoCode">
+      <h2>Enter verification code</h2>
+      <p class="modal-sub">A 6-digit code was sent to <span id="ssoEmailEcho">your email</span>.</p>
+      <label class="field-label" for="ssoCode">Verification code</label>
+      <input type="text" id="ssoCode" class="text-input" maxlength="6" placeholder="000000">
+      <button class="btn btn-accent auth-submit" id="ssoVerify">Verify and continue</button>
+      <button class="btn btn-ghost auth-back" id="ssoBackFromCode">Back</button>
+      <p class="hint" id="ssoDemoCode">Demo note: this static page can't actually send email, so the code is shown here instead of in your inbox.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tutorial panel -->
+<div class="modal-overlay" id="tutorialOverlay">
+  <div class="modal modal-wide tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <div class="tutorial-head">
+      <div>
+        <h2 id="tutorialTitle">Tutorial</h2>
+        <p class="modal-sub">How to Publish</p>
+      </div>
+      <button class="chrome-close" id="closeTutorial" title="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div id="tutorialBody"><!-- filled by app.js --></div>
+
+    <p class="hint">This panel stays on the same page — clicking Tutorial never changes the URL or reloads anything. The video is stored in this browser only (IndexedDB), so it will still be here next time you reopen CodeWeb on this device, but a different browser or device has its own separate storage and could upload its own video.</p>
   </div>
 </div>
 

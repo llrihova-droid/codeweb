@@ -60,6 +60,25 @@
   };
 
   /* ---------------------------------------------------------
+     Leveling — one step per week since the account was created
+     on this browser. Purely cosmetic, computed locally.
+  --------------------------------------------------------- */
+  const LEVELS = [
+    "Beginner", "Noob", "Bronze", "Normal", "Good", "Gooder", "Great", "Greater",
+    "Best", "Silver", "Every-month poster", "Greatest", "Goodest User", "Gold",
+    "Golden Builder", "Level-80 user", "Copro", "Good Skill", "Great Skill",
+    "Awesome Skill", "Best Skill", "Pro", "Beyond pro", "Goldensh user",
+    "Premaster", "Great Pro", "Comaster", "Best Pro", "Master", "Grandmaster",
+    "1-year User", "Likely Golden User Ever", "Golden User Ever",
+    "Best Developer Ever", "Pneudeveloper",
+  ];
+  function computeLevel(joinedAt) {
+    const weeks = Math.floor((Date.now() - joinedAt) / (7 * 24 * 60 * 60 * 1000));
+    const idx = Math.max(0, Math.min(weeks, LEVELS.length - 1));
+    return LEVELS[idx];
+  }
+
+  /* ---------------------------------------------------------
      State
   --------------------------------------------------------- */
   let files = [
@@ -536,12 +555,14 @@
   siteSlug.addEventListener("input", () => { slugTouched = true; });
 
   el("publishBtn").addEventListener("click", () => {
-    siteName.value = siteName.value || "My CodeWeb site";
-    siteSlug.value = siteSlug.value || slugify(siteName.value);
-    siteDescription.value = siteDescription.value || "Built with CodeWeb.";
-    renderIconGrid();
-    updateDomainOptions();
-    publishOverlay.classList.add("is-open");
+    requireAuth(() => {
+      siteName.value = siteName.value || "My CodeWeb site";
+      siteSlug.value = siteSlug.value || slugify(siteName.value);
+      siteDescription.value = siteDescription.value || "Built with CodeWeb.";
+      renderIconGrid();
+      updateDomainOptions();
+      publishOverlay.classList.add("is-open");
+    });
   });
   el("cancelPublish").addEventListener("click", () => publishOverlay.classList.remove("is-open"));
   publishOverlay.addEventListener("click", (e) => { if (e.target === publishOverlay) publishOverlay.classList.remove("is-open"); });
@@ -589,9 +610,401 @@
   });
 
   /* ---------------------------------------------------------
+     Account / login (demo)
+     There is no real backend here: OAuth buttons, the email +
+     password form, and SSO don't contact Google/GitHub/Apple/
+     DuckDuckGo or send real email. Signing in creates a small
+     local profile (name, method, join date) saved to
+     localStorage on this browser, purely so the level and the
+     Tutorial gate have something to react to.
+  --------------------------------------------------------- */
+  function loadUser() {
+    try {
+      const raw = localStorage.getItem("codeweb_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function saveUser(u) { localStorage.setItem("codeweb_user", JSON.stringify(u)); }
+  function clearUser() { localStorage.removeItem("codeweb_user"); }
+
+  let currentUser = loadUser();
+  let pendingAction = null;
+  let ssoGeneratedCode = null;
+  let ssoEmailValue = "";
+
+  const authOverlay = el("authOverlay");
+
+  function renderAuthChip() {
+    const avatar = el("authAvatar"), name = el("authName"), level = el("authLevel");
+    if (currentUser) {
+      avatar.innerHTML = avatarMarkup(currentUser);
+      name.textContent = currentUser.name;
+      level.textContent = computeLevel(currentUser.joinedAt);
+      level.classList.add("is-set");
+    } else {
+      avatar.textContent = "G";
+      name.textContent = "Guest";
+      level.textContent = "Log in";
+      level.classList.remove("is-set");
+    }
+  }
+
+  function loginAs(name, method) {
+    const existing = loadUser();
+    const joinedAt = existing ? existing.joinedAt : Date.now();
+    currentUser = { name, method, joinedAt };
+    saveUser(currentUser);
+    renderAuthChip();
+    closeAuth();
+    toast(`Signed in as ${name} (demo — ${method}).`);
+    if (pendingAction) { const fn = pendingAction; pendingAction = null; fn(); }
+  }
+
+  function requireAuth(action) {
+    if (currentUser) { action(); return; }
+    pendingAction = action;
+    openAuth();
+  }
+
+  function showAuthView(viewName) {
+    document.querySelectorAll(".auth-view").forEach(v => v.classList.remove("is-active"));
+    el(`authView-${viewName}`).classList.add("is-active");
+  }
+  function openAuth() { showAuthView("main"); authOverlay.classList.add("is-open"); }
+  function closeAuth() { authOverlay.classList.remove("is-open"); }
+
+  el("authChip").addEventListener("click", () => {
+    if (currentUser) {
+      openAccount();
+    } else {
+      pendingAction = null;
+      openAuth();
+    }
+  });
+  authOverlay.addEventListener("click", (e) => {
+    if (e.target === authOverlay) { authOverlay.classList.remove("is-open"); pendingAction = null; }
+  });
+
+  document.querySelectorAll(".oauth-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const provider = btn.dataset.provider;
+      const existing = loadUser();
+      const name = existing ? existing.name : `${provider} user`;
+      loginAs(name, provider);
+    });
+  });
+
+  el("authSubmit").addEventListener("click", () => {
+    const email = el("authEmail").value.trim();
+    const username = el("authUsername").value.trim();
+    if (!email && !username) { toast("Enter at least a username or an email."); return; }
+    loginAs(username || email.split("@")[0], "email");
+  });
+
+  el("ssoLink").addEventListener("click", () => showAuthView("ssoEmail"));
+  el("ssoBackFromEmail").addEventListener("click", () => showAuthView("main"));
+  el("ssoBackFromCode").addEventListener("click", () => showAuthView("ssoEmail"));
+
+  el("ssoSendCode").addEventListener("click", () => {
+    ssoEmailValue = el("ssoEmail").value.trim();
+    if (!ssoEmailValue) { toast("Enter an email first."); return; }
+    ssoGeneratedCode = String(Math.floor(100000 + Math.random() * 900000));
+    el("ssoEmailEcho").textContent = ssoEmailValue;
+    el("ssoDemoCode").textContent = `Demo note: this static page can't actually send email, so here is the code instead of your inbox: ${ssoGeneratedCode}`;
+    showAuthView("ssoCode");
+  });
+
+  el("ssoVerify").addEventListener("click", () => {
+    const entered = el("ssoCode").value.trim();
+    if (!ssoGeneratedCode || entered !== ssoGeneratedCode) {
+      toast("That code doesn't match — check the demo code shown above.");
+      return;
+    }
+    loginAs(ssoEmailValue.split("@")[0], "SSO");
+  });
+
+  /* ---------------------------------------------------------
+     Tutorial panel
+     The video is stored with IndexedDB, scoped to this browser
+     only. There's no shared server, so "only one upload ever"
+     is enforced per browser/device, not globally across every
+     visitor — a real global single-slot upload would need an
+     actual backend with a database.
+  --------------------------------------------------------- */
+  const DB_NAME = "codeweb_db", DB_VERSION = 1, STORE = "videos";
+  function openVideoDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => { req.result.createObjectStore(STORE, { keyPath: "id" }); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function getVideoRecord() {
+    const db = await openVideoDB();
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, "readonly").objectStore(STORE).get(1);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function saveVideoRecord(record) {
+    const db = await openVideoDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function renderTutorialBody() {
+    const body = el("tutorialBody");
+    body.innerHTML = `<p class="hint">Loading…</p>`;
+    let rec = null;
+    try { rec = await getVideoRecord(); } catch (e) { /* IndexedDB unavailable */ }
+
+    if (rec && rec.blob) {
+      const url = URL.createObjectURL(rec.blob);
+      body.innerHTML = `
+        <div class="tutorial-video-wrap">
+          <video src="${url}" controls></video>
+          <div class="tutorial-meta">
+            <span class="lock-icon">${ICONS.star}</span>
+            Uploaded by ${escapeHtml(rec.uploaderName)} — this slot is locked, it's the only tutorial video for this browser.
+          </div>
+        </div>`;
+    } else {
+      body.innerHTML = `
+        <label class="upload-drop" id="uploadDrop">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Upload a .mp4 here</span>
+          <small>Only the first upload sticks — after that, this slot is locked for this browser.</small>
+          <input type="file" accept="video/mp4" id="videoInput" style="display:none">
+        </label>`;
+      el("videoInput").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.type !== "video/mp4" && !file.name.toLowerCase().endsWith(".mp4")) {
+          toast("Please choose an .mp4 file.");
+          return;
+        }
+        try {
+          await saveVideoRecord({ id: 1, blob: file, uploaderName: currentUser.name, uploadedAt: Date.now() });
+          toast("Uploaded — this video now stays in the Tutorial every time you reopen CodeWeb here.");
+          renderTutorialBody();
+        } catch (err) {
+          toast("Couldn't save the video in this browser's storage.");
+        }
+      });
+    }
+  }
+
+  function openTutorial() {
+    el("tutorialOverlay").classList.add("is-open");
+    renderTutorialBody();
+  }
+  el("tutorialBtn").addEventListener("click", () => requireAuth(openTutorial));
+  el("closeTutorial").addEventListener("click", () => el("tutorialOverlay").classList.remove("is-open"));
+  el("tutorialOverlay").addEventListener("click", (e) => {
+    if (e.target === el("tutorialOverlay")) el("tutorialOverlay").classList.remove("is-open");
+  });
+
+  /* ---------------------------------------------------------
+     Theme (light / dark)
+     There's no real Google account connected here, so CodeWeb
+     can't literally read a "your Google is light/dark" signal.
+     What it does instead: follow the browser/OS light-dark
+     preference (the same signal every app actually uses), with
+     a manual Light/Dark override saved per browser.
+  --------------------------------------------------------- */
+  let themeMode = localStorage.getItem("codeweb_theme") || "auto";
+  function systemPrefersLight() {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+  }
+  function applyTheme(mode) {
+    const isLight = mode === "light" ? true : mode === "dark" ? false : systemPrefersLight();
+    document.body.classList.toggle("theme-light", isLight);
+    document.querySelectorAll(".theme-option").forEach(btn => {
+      btn.classList.toggle("is-active", btn.dataset.theme === mode);
+    });
+  }
+  function setThemeMode(mode) {
+    themeMode = mode;
+    localStorage.setItem("codeweb_theme", mode);
+    applyTheme(mode);
+  }
+  if (window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+      if (themeMode === "auto") applyTheme("auto");
+    });
+  }
+  document.querySelectorAll(".theme-option").forEach(btn => {
+    btn.addEventListener("click", () => setThemeMode(btn.dataset.theme));
+  });
+
+  /* ---------------------------------------------------------
+     Account overlay: profile picture, display name, settings
+  --------------------------------------------------------- */
+  const accountOverlay = el("accountOverlay");
+  const EMOJI_CHOICES = ["😀","😎","🚀","🔥","⭐","💡","🎮","🐱","🐉","🌙","⚡","🍀","🎧","🧠","🛠️","🌈","👾","🧩","🍕","🎯","🦊","🌟","🖥️","☕"];
+
+  function openAccount() {
+    if (!currentUser) return;
+    switchAccountView("profile");
+    renderProfilePreview();
+    renderProfileIconGrid();
+    el("accountNameInput").value = currentUser.name;
+    renderAccountInfo();
+    applyTheme(themeMode);
+    accountOverlay.classList.add("is-open");
+  }
+  function closeAccount() { accountOverlay.classList.remove("is-open"); }
+  el("closeAccount").addEventListener("click", closeAccount);
+  accountOverlay.addEventListener("click", (e) => { if (e.target === accountOverlay) closeAccount(); });
+
+  document.querySelectorAll(".account-menu-item[data-account-view]").forEach(btn => {
+    btn.addEventListener("click", () => switchAccountView(btn.dataset.accountView));
+  });
+  function switchAccountView(view) {
+    document.querySelectorAll(".account-menu-item[data-account-view]").forEach(b => b.classList.toggle("is-active", b.dataset.accountView === view));
+    document.querySelectorAll(".account-view").forEach(v => v.classList.toggle("is-active", v.id === `accountView-${view}`));
+  }
+
+  function avatarMarkup(user) {
+    if (user.profileImage) return `<img src="${user.profileImage}" alt="">`;
+    if (user.iconKey && ICONS[user.iconKey]) return ICONS[user.iconKey];
+    return escapeHtml(user.name.slice(0, 1).toUpperCase());
+  }
+  function renderProfilePreview() { el("profilePreview").innerHTML = avatarMarkup(currentUser); }
+
+  function renderProfileIconGrid() {
+    const grid = el("profileIconGrid");
+    grid.innerHTML = "";
+    ICON_CHOICES.forEach(key => {
+      const opt = document.createElement("div");
+      opt.className = "icon-option" + (currentUser.iconKey === key && !currentUser.profileImage ? " is-selected" : "");
+      opt.innerHTML = ICONS[key];
+      opt.addEventListener("click", () => {
+        currentUser.iconKey = key;
+        currentUser.profileImage = null;
+        saveUser(currentUser);
+        renderProfilePreview();
+        renderProfileIconGrid();
+        renderAuthChip();
+      });
+      grid.appendChild(opt);
+    });
+  }
+
+  el("profileImageInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast("Please choose an image file.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      toast("Couldn't read that file — please try a different image.");
+      e.target.value = "";
+    };
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => {
+        toast("This browser can't display that image format (e.g. HEIC from an iPhone) — try a JPG or PNG instead.");
+        e.target.value = "";
+      };
+      img.onload = () => {
+        try {
+          // Downscale and re-encode as JPEG so a normal phone photo
+          // (often several MB) fits comfortably in localStorage.
+          const MAX = 256;
+          let { width, height } = img;
+          if (width > height && width > MAX) { height = Math.round(height * (MAX / width)); width = MAX; }
+          else if (height >= width && height > MAX) { width = Math.round(width * (MAX / height)); height = MAX; }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+          currentUser.profileImage = dataUrl;
+          currentUser.iconKey = null;
+          saveUser(currentUser);
+          renderProfilePreview();
+          renderProfileIconGrid();
+          renderAuthChip();
+          toast("Profile photo updated.");
+        } catch (err) {
+          toast("Couldn't save that photo in this browser's storage.");
+        } finally {
+          e.target.value = "";
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function renderEmojiGrid() {
+    const grid = el("emojiGrid");
+    grid.innerHTML = "";
+    EMOJI_CHOICES.forEach(ch => {
+      const opt = document.createElement("div");
+      opt.className = "emoji-option";
+      opt.textContent = ch;
+      opt.addEventListener("click", () => {
+        const input = el("accountNameInput");
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        input.value = input.value.slice(0, start) + ch + input.value.slice(end);
+        input.focus();
+        input.selectionStart = input.selectionEnd = start + ch.length;
+      });
+      grid.appendChild(opt);
+    });
+  }
+  renderEmojiGrid();
+
+  el("saveAccountName").addEventListener("click", () => {
+    const name = el("accountNameInput").value.trim();
+    if (!name) { toast("Enter a name first."); return; }
+    currentUser.name = name;
+    saveUser(currentUser);
+    renderAuthChip();
+    renderProfilePreview();
+    toast("Name updated.");
+  });
+
+  function renderAccountInfo() {
+    const joined = new Date(currentUser.joinedAt);
+    el("accountInfoBox").innerHTML = `
+      Signed in with <strong>${escapeHtml(currentUser.method)}</strong><br>
+      Member since <strong>${joined.toLocaleDateString()}</strong><br>
+      Current level: <strong>${escapeHtml(computeLevel(currentUser.joinedAt))}</strong>
+    `;
+  }
+
+  el("accountLogout").addEventListener("click", () => {
+    const ok = window.confirm(`Log out of ${currentUser.name}? This only clears the local demo session on this browser.`);
+    if (ok) {
+      currentUser = null;
+      clearUser();
+      renderAuthChip();
+      closeAccount();
+      toast("Logged out.");
+    }
+  });
+
+  /* ---------------------------------------------------------
      Init
   --------------------------------------------------------- */
   loadActiveFile();
   renderTabs();
   refreshPreview("preview");
+  renderAuthChip();
+  applyTheme(themeMode);
 })();

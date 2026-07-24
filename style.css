@@ -789,3 +789,35 @@ body.theme-light #previewFrame{ background:#fff; }
   .account-menu{ width:100%; flex-direction:row; flex-wrap:wrap; }
   .account-logout{ margin-top:0; }
 }
+
+/* ---------------------------------------------------------
+   Quick Restore
+--------------------------------------------------------- */
+.restore-scanning{
+  display:flex; align-items:center; gap:10px;
+  padding: 18px 4px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+.spinner{
+  width: 16px; height:16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  flex-shrink:0;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin{ to { transform: rotate(360deg); } }
+
+.restore-clean{
+  padding: 16px 4px;
+  color: var(--good);
+}
+.restore-clean p:first-child{ margin: 0 0 4px; }
+
+.restore-alert{
+  padding: 4px;
+  color: var(--text);
+}
+.restore-alert p:first-child{ color: var(--bad); margin: 0 0 6px; }
+.restore-alert .btn{ margin-top: 10px; }

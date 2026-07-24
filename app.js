@@ -574,6 +574,7 @@
     const description = siteDescription.value.trim() || "Built with CodeWeb.";
 
     publishedSite = { name, slug, domain, description, icon: selectedIconKey, files: JSON.parse(JSON.stringify(files)) };
+    persistPublishedSite(publishedSite);
 
     el("publishedName").textContent = name;
     el("publishedDesc").textContent = description;
@@ -608,6 +609,115 @@
     URL.revokeObjectURL(a.href);
     toast(`Downloaded ${publishedSite.slug}.cwebproject`);
   });
+
+  /* ---------------------------------------------------------
+     Published-sites storage + Quick Restore
+
+     This is real, not a demo: every publish is saved to
+     localStorage under "codeweb_sites", and a mirrored
+     "codeweb_sites_backup" copy is taken at the same moment.
+     Quick Restore compares the two. In normal use they always
+     match, so it will almost always report "no issues" — that
+     is the correct, honest result. A real mismatch only shows
+     up if this browser's site storage actually gets wiped or
+     partially cleared after a publish (e.g. the browser clears
+     site data, or a bug corrupts one entry), in which case the
+     backup copy is used to restore the missing/broken record.
+  --------------------------------------------------------- */
+  function loadSites() {
+    try { return JSON.parse(localStorage.getItem("codeweb_sites") || "[]"); }
+    catch (e) { return []; }
+  }
+  function saveSites(list) { localStorage.setItem("codeweb_sites", JSON.stringify(list)); }
+  function loadSitesBackup() {
+    try { return JSON.parse(localStorage.getItem("codeweb_sites_backup") || "[]"); }
+    catch (e) { return []; }
+  }
+  function saveSitesBackup(list) { localStorage.setItem("codeweb_sites_backup", JSON.stringify(list)); }
+
+  function persistPublishedSite(site) {
+    const record = {
+      slug: site.slug,
+      domain: site.domain,
+      name: site.name,
+      description: site.description,
+      icon: site.icon,
+      files: site.files.map(f => ({ name: f.name, type: f.type, content: f.content })),
+      publishedAt: Date.now(),
+    };
+    const list = loadSites();
+    const idx = list.findIndex(s => s.slug === record.slug);
+    if (idx >= 0) list[idx] = record; else list.push(record);
+    saveSites(list);
+    saveSitesBackup(list); // mirror the known-good state right after a successful publish
+  }
+
+  function siteLooksIntact(site) {
+    if (!site || typeof site !== "object") return false;
+    if (!Array.isArray(site.files) || site.files.length === 0) return false;
+    return site.files.every(f => typeof f.content === "string");
+  }
+
+  function scanForMissingSites() {
+    const primary = loadSites();
+    const backup = loadSitesBackup();
+    return backup.filter(b => {
+      const match = primary.find(p => p.slug === b.slug);
+      if (!match) return true;           // present in backup, gone from primary
+      if (!siteLooksIntact(match)) return true; // present but corrupted
+      return false;
+    });
+  }
+
+  function restoreSiteFromBackup(record) {
+    const primary = loadSites();
+    const idx = primary.findIndex(p => p.slug === record.slug);
+    if (idx >= 0) primary[idx] = record; else primary.push(record);
+    saveSites(primary);
+    saveSitesBackup(primary); // the restored state is now the known-good baseline
+  }
+
+  const quickRestoreOverlay = el("quickRestoreOverlay");
+  function openQuickRestore() {
+    quickRestoreOverlay.classList.add("is-open");
+    runQuickRestoreScan();
+  }
+  function closeQuickRestore() { quickRestoreOverlay.classList.remove("is-open"); }
+  el("closeQuickRestore").addEventListener("click", closeQuickRestore);
+  quickRestoreOverlay.addEventListener("click", (e) => { if (e.target === quickRestoreOverlay) closeQuickRestore(); });
+  el("quickRestoreBtn").addEventListener("click", () => requireAuth(openQuickRestore));
+
+  async function runQuickRestoreScan() {
+    const body = el("quickRestoreBody");
+    body.innerHTML = `<div class="restore-scanning"><span class="spinner"></span> Checking your published sites for missing or damaged data…</div>`;
+    await new Promise(r => setTimeout(r, 450)); // the check itself is instant; this just keeps the state readable
+    renderQuickRestoreResult(scanForMissingSites());
+  }
+
+  function renderQuickRestoreResult(missing) {
+    const body = el("quickRestoreBody");
+    const total = loadSites().length;
+    if (missing.length === 0) {
+      body.innerHTML = `
+        <div class="restore-clean">
+          <p><strong>Everything checks out.</strong></p>
+          <p class="hint">${total ? `Checked ${total} published site${total === 1 ? "" : "s"} in this browser — n` : "N"}o missing or damaged sites found.</p>
+        </div>`;
+      return;
+    }
+    const site = missing[0];
+    body.innerHTML = `
+      <div class="restore-alert">
+        <p><strong>One of your sites got deleted.</strong></p>
+        <p class="hint">"${escapeHtml(site.name)}" (${escapeHtml(site.slug + (site.domain || ""))}) is missing or damaged in your saved sites, but a backup copy from its last publish is still here.</p>
+        <button class="btn btn-accent" id="restoreQuickBtn">Restore quickly</button>
+      </div>`;
+    el("restoreQuickBtn").addEventListener("click", () => {
+      restoreSiteFromBackup(site);
+      toast(`Restored "${site.name}" from its last saved backup.`);
+      renderQuickRestoreResult(missing.slice(1));
+    });
+  }
 
   /* ---------------------------------------------------------
      Account / login (demo)

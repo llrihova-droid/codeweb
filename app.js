@@ -555,13 +555,15 @@
   siteSlug.addEventListener("input", () => { slugTouched = true; });
 
   el("publishBtn").addEventListener("click", () => {
-    requireAuth(() => {
-      siteName.value = siteName.value || "My CodeWeb site";
-      siteSlug.value = siteSlug.value || slugify(siteName.value);
-      siteDescription.value = siteDescription.value || "Built with CodeWeb.";
-      renderIconGrid();
-      updateDomainOptions();
-      publishOverlay.classList.add("is-open");
+    requireBirthday(() => {
+      requireAuth(() => {
+        siteName.value = siteName.value || "My CodeWeb site";
+        siteSlug.value = siteSlug.value || slugify(siteName.value);
+        siteDescription.value = siteDescription.value || "Built with CodeWeb.";
+        renderIconGrid();
+        updateDomainOptions();
+        publishOverlay.classList.add("is-open");
+      });
     });
   });
   el("cancelPublish").addEventListener("click", () => publishOverlay.classList.remove("is-open"));
@@ -759,7 +761,15 @@
     }
   }
 
+  const CODEWEB_KIDS_URL = "https://llrihova-droid.github.io/codeweb-kids/";
+
   function loginAs(name, method) {
+    const age = Number(el("authAge").value);
+    if (age >= 5 && age <= 8) {
+      toast("Taking you to CodeWeb Kids…");
+      window.location.href = CODEWEB_KIDS_URL;
+      return;
+    }
     const existing = loadUser();
     const joinedAt = existing ? existing.joinedAt : Date.now();
     currentUser = { name, method, joinedAt };
@@ -775,6 +785,87 @@
     pendingAction = action;
     openAuth();
   }
+
+  /* ---------------------------------------------------------
+     Birthday verification (Publish gate)
+     Deliberately separate from the OAuth/email/SSO login: this
+     screen only ever asks for a birthday, nothing else. Ages
+     5–8 get redirected to CodeWeb Kids, same as the age field
+     in the main login. Once verified, it's remembered on this
+     browser so it isn't asked again.
+  --------------------------------------------------------- */
+  const birthdayOverlay = el("birthdayOverlay");
+  const bdayDay = el("bdayDay"), bdayMonth = el("bdayMonth"), bdayYear = el("bdayYear");
+  let pendingBirthdayAction = null;
+
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  for (let d = 1; d <= 31; d++) bdayDay.innerHTML += `<option value="${d}">${d}</option>`;
+  MONTH_NAMES.forEach((m, i) => { bdayMonth.innerHTML += `<option value="${i + 1}">${m}</option>`; });
+  bdayDay.insertAdjacentHTML("afterbegin", `<option value="">Day</option>`);
+  bdayMonth.insertAdjacentHTML("afterbegin", `<option value="">Month</option>`);
+  bdayDay.value = ""; bdayMonth.value = "";
+
+  function showBirthdayView(view) {
+    document.querySelectorAll(".birthday-view").forEach(v => v.classList.toggle("is-active", v.id === `birthdayView-${view}`));
+  }
+  function openBirthdayGate(action) {
+    pendingBirthdayAction = action;
+    showBirthdayView("gate");
+    birthdayOverlay.classList.add("is-open");
+  }
+  function closeBirthdayGate() {
+    birthdayOverlay.classList.remove("is-open");
+    pendingBirthdayAction = null;
+  }
+  function requireBirthday(action) {
+    if (localStorage.getItem("codeweb_birthday_verified") === "1") { action(); return; }
+    openBirthdayGate(action);
+  }
+
+  el("verifyAgeBtn").addEventListener("click", () => showBirthdayView("form"));
+  el("cancelBirthdayGate").addEventListener("click", closeBirthdayGate);
+  el("cancelBirthdayForm").addEventListener("click", closeBirthdayGate);
+  birthdayOverlay.addEventListener("click", (e) => { if (e.target === birthdayOverlay) closeBirthdayGate(); });
+
+  function computeAge(year, month, day) {
+    const today = new Date();
+    const birth = new Date(year, month - 1, day);
+    let age = today.getFullYear() - birth.getFullYear();
+    const hasHadBirthdayThisYear = (today.getMonth() > birth.getMonth()) ||
+      (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate());
+    if (!hasHadBirthdayThisYear) age--;
+    return age;
+  }
+
+  el("submitBirthday").addEventListener("click", () => {
+    const day = Number(bdayDay.value), month = Number(bdayMonth.value), year = Number(bdayYear.value);
+    const currentYear = new Date().getFullYear();
+    if (!day || !month || !year || year < 1900 || year > currentYear) {
+      toast("Please enter a real, complete birthday.");
+      return;
+    }
+    const birthDate = new Date(year, month - 1, day);
+    if (birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day || birthDate > new Date()) {
+      toast("That date doesn't look right — please check it.");
+      return;
+    }
+
+    const age = computeAge(year, month, day);
+    localStorage.setItem("codeweb_birthday", JSON.stringify({ day, month, year }));
+
+    if (age >= 5 && age <= 8) {
+      localStorage.removeItem("codeweb_birthday_verified");
+      toast("Taking you to CodeWeb Kids…");
+      window.location.href = CODEWEB_KIDS_URL;
+      return;
+    }
+
+    localStorage.setItem("codeweb_birthday_verified", "1");
+    birthdayOverlay.classList.remove("is-open");
+    const action = pendingBirthdayAction;
+    pendingBirthdayAction = null;
+    if (action) action();
+  });
 
   function showAuthView(viewName) {
     document.querySelectorAll(".auth-view").forEach(v => v.classList.remove("is-active"));

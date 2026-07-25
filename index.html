@@ -275,6 +275,33 @@
   </div>
 </div>
 
+<!-- Birthday verification (Publish gate) -->
+<div class="modal-overlay" id="birthdayOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="birthdayTitle">
+
+    <div class="birthday-view is-active" id="birthdayView-gate">
+      <h2 id="birthdayTitle">Before you publish</h2>
+      <p class="modal-sub">Please enter your real birthday before making a site.</p>
+      <button class="btn btn-accent auth-submit" id="verifyAgeBtn">Verify your age</button>
+      <button class="btn btn-ghost auth-back" id="cancelBirthdayGate">Cancel</button>
+    </div>
+
+    <div class="birthday-view" id="birthdayView-form">
+      <h2>Verify your age</h2>
+      <p class="modal-sub">This just asks for your birthday — no email, password, or username.</p>
+      <label class="field-label">Birthday</label>
+      <div class="birthday-row">
+        <select id="bdayDay" class="text-input"></select>
+        <select id="bdayMonth" class="text-input"></select>
+        <input type="number" id="bdayYear" class="text-input" placeholder="Year" min="1900" max="2026">
+      </div>
+      <button class="btn btn-accent auth-submit" id="submitBirthday">Continue</button>
+      <button class="btn btn-ghost auth-back" id="cancelBirthdayForm">Cancel</button>
+    </div>
+
+  </div>
+</div>
+
 <!-- Auth modal -->
 <div class="modal-overlay" id="authOverlay">
   <div class="modal modal-wide auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -283,6 +310,10 @@
     <div class="auth-view is-active" id="authView-main">
       <h2 id="authTitle">Log in to CodeWeb</h2>
       <p class="modal-sub">You need an account to publish a site or open the Tutorial.</p>
+
+      <label class="field-label" for="authAge">Your age</label>
+      <input type="number" id="authAge" class="text-input" placeholder="e.g. 12" min="5" max="120">
+      <p class="hint" id="ageHint">Ages 5–8 go to CodeWeb Kids, a simpler site made for young learners.</p>
 
       <div class="oauth-col">
         <button class="oauth-btn" data-provider="Google"><span class="oauth-badge oauth-google">G</span>Continue with Google</button>

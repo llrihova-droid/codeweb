@@ -579,6 +579,8 @@ input, textarea, select{ font-family: inherit; }
 --------------------------------------------------------- */
 .auth-view{ display:none; }
 .auth-view.is-active{ display:block; }
+.birthday-view{ display:none; }
+.birthday-view.is-active{ display:block; }
 
 .oauth-col{ display:flex; flex-direction:column; gap:8px; margin-bottom: 4px; }
 .oauth-btn{
@@ -621,6 +623,9 @@ input, textarea, select{ font-family: inherit; }
 .auth-submit{ width:100%; justify-content:center; margin-top: 16px; }
 .auth-sso-link{ width:100%; justify-content:center; margin-top: 8px; }
 .auth-back{ width:100%; justify-content:center; margin-top: 8px; }
+
+.birthday-row{ display:flex; gap:8px; }
+.birthday-row select, .birthday-row input{ flex:1; min-width:0; }
 
 /* ---------------------------------------------------------
    Tutorial panel

@@ -21,6 +21,29 @@
   "use strict";
 
   /* ---------------------------------------------------------
+     Version + console banner
+
+     Real, honest self-XSS warning: a website has no way to see
+     or stop what someone pastes into their own DevTools console
+     — that console runs with full page access, same as the
+     page's own scripts. So this doesn't claim to detect or
+     block anything; it's the same kind of plain warning banner
+     Facebook/Google/etc. print, telling people not to paste code
+     they don't understand, and pointing them at Codex instead.
+
+     CODEWEB_VERSION bumps by 1.00 on every future update to this
+     file, per the versioning scheme requested (…5.00, 6.00,
+     7.00, …).
+  --------------------------------------------------------- */
+  const CODEWEB_VERSION = "1.00";
+  console.log(`💫 The only way to use a editor. Version: ${CODEWEB_VERSION}`);
+  console.log("%cStop!", "color:#ff5d5d; font-size:46px; font-weight:800;");
+  console.log(
+    "%cOnly paste code here if you understand exactly what it does. Code pasted from someone else — even code that looks harmless — can act on your account or your published sites. If you want help writing code, use Codex instead of pasting scripts from strangers.",
+    "font-size:14px; line-height:1.5;"
+  );
+
+  /* ---------------------------------------------------------
      Icons (inline SVG — no emoji anywhere in this app)
   --------------------------------------------------------- */
   const ICONS = {
@@ -181,7 +204,7 @@
     activeFileType.textContent = TYPE_META[f.type].label;
     renderTabs();
     renderGutter(f.lineStatus || []);
-    renderConsole(f.messages || null);
+    renderConsole(f.messages ? { messages: f.messages } : null);
     statusMsg.textContent = "Ready.";
   }
 
@@ -764,12 +787,6 @@
   const CODEWEB_KIDS_URL = "https://llrihova-droid.github.io/codeweb-kids/";
 
   function loginAs(name, method) {
-    const age = Number(el("authAge").value);
-    if (age >= 5 && age <= 8) {
-      toast("Taking you to CodeWeb Kids…");
-      window.location.href = CODEWEB_KIDS_URL;
-      return;
-    }
     const existing = loadUser();
     const joinedAt = existing ? existing.joinedAt : Date.now();
     currentUser = { name, method, joinedAt };
@@ -1208,4 +1225,282 @@
   refreshPreview("preview");
   renderAuthChip();
   applyTheme(themeMode);
+
+  /* ===========================================================
+     Codex — optional AI coding helper (bring-your-own OpenAI key)
+
+     Honesty notes:
+     - The API key is only ever stored in this browser's
+       localStorage and sent directly from the browser to
+       OpenAI's API. It is never part of this site's source and
+       never sent anywhere else.
+     - Every visitor pays for their own usage with their own key.
+     - "Checking your files" and the bug-fix loop reuse the same
+       real, lightweight syntax checker as the Run button — this
+       isn't a second, separate "AI bug detector."
+     - Publishing at the end still goes through the same real
+       birthday/login gate and local-storage publish flow as the
+       manual Publish button; Codex only pre-fills the fields.
+  =========================================================== */
+  const CODEX_SYSTEM_PROMPT = `You are Codex, a friendly AI coding assistant built into CodeWeb, a browser-based code editor. You are not ChatGPT — if asked who you are or what model you are, say you are Codex. Help the person plan and write their website (HTML, CSS, or JavaScript). If you don't yet know what their site is about, ask them. When you suggest code, put it in a single fenced code block labeled with the language (html, css, or javascript) and keep the rest of your reply short. When asked to fix a file, reply with ONLY one fenced code block containing the corrected full file content and nothing else. When asked for a name, description and icon, reply with ONLY a compact JSON object and nothing else.`;
+
+  const loadCodexKey = () => localStorage.getItem("codeweb_codex_key") || "";
+  const saveCodexKeyValue = (k) => localStorage.setItem("codeweb_codex_key", k);
+  const loadCodexModel = () => localStorage.getItem("codeweb_codex_model") || "gpt-4o-mini";
+  const saveCodexModel = (m) => localStorage.setItem("codeweb_codex_model", m);
+
+  let codexMessages = [];
+  let codexFixAttempts = 0;
+  let pendingWarnAction = null;
+
+  const codexOverlay = el("codexOverlay");
+  const codexWarnOverlay = el("codexWarnOverlay");
+
+  function showCodexView(view) {
+    document.querySelectorAll(".codex-view").forEach(v => v.classList.toggle("is-active", v.id === `codexView-${view}`));
+  }
+  function openCodex() {
+    codexOverlay.classList.add("is-open");
+    if (loadCodexKey()) {
+      showCodexView("chat");
+      if (codexMessages.length === 0) codexBootstrap();
+    } else {
+      showCodexView("key");
+    }
+  }
+  el("codexBtn").addEventListener("click", openCodex);
+  el("closeCodex").addEventListener("click", () => codexOverlay.classList.remove("is-open"));
+  codexOverlay.addEventListener("click", (e) => { if (e.target === codexOverlay) codexOverlay.classList.remove("is-open"); });
+
+  el("saveCodexKey").addEventListener("click", () => {
+    const key = el("codexKeyInput").value.trim();
+    if (!key) { toast("Paste your OpenAI API key first."); return; }
+    saveCodexKeyValue(key);
+    const model = el("codexModelInput").value.trim();
+    if (model) saveCodexModel(model);
+    showCodexView("chat");
+    if (codexMessages.length === 0) codexBootstrap();
+  });
+  el("codexForgetKey").addEventListener("click", () => {
+    localStorage.removeItem("codeweb_codex_key");
+    el("codexKeyInput").value = "";
+    showCodexView("key");
+  });
+
+  function addCodexMessage(role, content) { codexMessages.push({ role, content }); }
+
+  function splitCodeBlock(content) {
+    const match = /```(\w+)?\n([\s\S]*?)```/.exec(content);
+    if (!match) return { text: content, code: null };
+    const text = (content.slice(0, match.index) + content.slice(match.index + match[0].length)).trim();
+    return { text: text || "Here's some code:", code: match[2].trim() };
+  }
+
+  function renderCodexLog() {
+    const log = el("codexLog");
+    log.innerHTML = "";
+    codexMessages.forEach(m => {
+      const div = document.createElement("div");
+      div.className = `codex-msg ${m.role}`;
+      if (m.role === "system") { div.textContent = m.content; log.appendChild(div); return; }
+      const { text, code } = splitCodeBlock(m.content);
+      div.textContent = text;
+      if (code) {
+        const codeEl = document.createElement("code");
+        codeEl.textContent = code;
+        div.appendChild(codeEl);
+        if (m.role === "assistant") {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-accent codex-insert-btn";
+          btn.textContent = `Insert into ${activeFile().name}`;
+          btn.addEventListener("click", () => tryInsertCode(code));
+          div.appendChild(btn);
+        }
+      }
+      log.appendChild(div);
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function codexBootstrap() {
+    addCodexMessage("system", "Codex only sees this chat plus whatever file content you send it — it can't act on its own.");
+    addCodexMessage("assistant", "Hi, I'm Codex! What's your site about?");
+    renderCodexLog();
+  }
+
+  async function callCodex() {
+    const key = loadCodexKey();
+    if (!key) { toast("Add your OpenAI API key first."); showCodexView("key"); return null; }
+    const payloadMessages = [
+      { role: "system", content: CODEX_SYSTEM_PROMPT },
+      ...codexMessages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.content })),
+    ];
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+        body: JSON.stringify({ model: loadCodexModel(), messages: payloadMessages, temperature: 0.6 }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`OpenAI API error (${res.status}): ${errText.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      return (data.choices && data.choices[0] && data.choices[0].message.content || "").trim();
+    } catch (err) {
+      addCodexMessage("system", `Codex couldn't reach OpenAI: ${err.message}`);
+      renderCodexLog();
+      return null;
+    }
+  }
+
+  async function sendCodexMessage() {
+    const input = el("codexInput");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    addCodexMessage("user", text);
+    renderCodexLog();
+    el("codexSend").disabled = true;
+    const reply = await callCodex();
+    el("codexSend").disabled = false;
+    if (reply) { addCodexMessage("assistant", reply); renderCodexLog(); }
+  }
+  el("codexSend").addEventListener("click", sendCodexMessage);
+  el("codexInput").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCodexMessage(); });
+
+  // Lightweight "does this look garbled" check on an AI-suggested
+  // snippet — same bracket/quote-balance idea as the real Run checker.
+  function looksGarbled(code) {
+    const stack = [];
+    const pairs = { "(": ")", "[": "]", "{": "}" };
+    const closers = { ")": "(", "]": "[", "}": "{" };
+    for (const ch of code) {
+      if (pairs[ch]) stack.push(ch);
+      else if (closers[ch]) {
+        if (stack.pop() !== closers[ch]) return { garbled: true, reason: `Codex's suggestion has an unexpected '${ch}' with no matching '${closers[ch]}'.` };
+      }
+    }
+    if (stack.length > 0) return { garbled: true, reason: `Codex's suggestion never closes a '${stack[stack.length - 1]}'.` };
+    const sq = (code.match(/'/g) || []).length, dq = (code.match(/"/g) || []).length;
+    if (sq % 2 !== 0 || dq % 2 !== 0) return { garbled: true, reason: "Codex's suggestion has an unmatched quote." };
+    if (code.trim().length < 3) return { garbled: true, reason: "Codex's suggestion looks too short to be real code." };
+    return { garbled: false, reason: "" };
+  }
+
+  function showGarbledWarning(reason, onConfirm) {
+    el("codexWarnReason").textContent = reason;
+    pendingWarnAction = onConfirm;
+    codexWarnOverlay.classList.add("is-open");
+  }
+  function closeGarbledWarning() { codexWarnOverlay.classList.remove("is-open"); pendingWarnAction = null; }
+  el("codexWarnCancel").addEventListener("click", closeGarbledWarning);
+  codexWarnOverlay.addEventListener("click", (e) => { if (e.target === codexWarnOverlay) closeGarbledWarning(); });
+  el("codexWarnInsert").addEventListener("click", () => {
+    const fn = pendingWarnAction;
+    closeGarbledWarning();
+    if (fn) fn();
+  });
+
+  function insertCodeIntoActiveFile(code) {
+    const f = activeFile();
+    f.content = f.content.trim() ? f.content.replace(/\s*$/, "") + "\n\n" + code + "\n" : code + "\n";
+    f.status = null; f.lineStatus = null;
+    loadActiveFile();
+    toast(`Added to ${f.name}.`);
+  }
+  function tryInsertCode(code) {
+    const check = looksGarbled(code);
+    if (check.garbled) showGarbledWarning(check.reason, () => insertCodeIntoActiveFile(code));
+    else insertCodeIntoActiveFile(code);
+  }
+
+  function offerFileReplacement(file, code) {
+    const check = looksGarbled(code);
+    const log = el("codexLog");
+    const div = document.createElement("div");
+    div.className = "codex-msg system";
+    const btn = document.createElement("button");
+    btn.className = "btn btn-accent codex-insert-btn";
+    btn.textContent = `Apply fix to ${file.name}`;
+    const applyFix = () => {
+      file.content = code;
+      file.status = null; file.lineStatus = null;
+      if (activeId === file.id) loadActiveFile(); else renderTabs();
+      toast(`Updated ${file.name}. Click "My site is finished" again to re-check.`);
+    };
+    btn.addEventListener("click", () => { check.garbled ? showGarbledWarning(check.reason, applyFix) : applyFix(); });
+    div.appendChild(btn);
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function codexHandleFinish() {
+    addCodexMessage("system", "Checking your files for problems (using the same checker as Run)...");
+    renderCodexLog();
+
+    const problems = [];
+    files.forEach(f => {
+      const result = analyze(f);
+      f.lineStatus = result.lineStatus;
+      f.messages = result.messages;
+      f.status = result.messages.some(m => m.type === "err") ? "err" : "ok";
+      if (f.status === "err") problems.push({ file: f, result });
+    });
+    renderTabs();
+    if (activeFile()) {
+      renderGutter(activeFile().lineStatus || []);
+      renderConsole(activeFile().messages ? { messages: activeFile().messages } : null);
+    }
+
+    if (problems.length > 0 && codexFixAttempts < 3) {
+      codexFixAttempts++;
+      const p = problems[0];
+      const errText = p.result.messages.filter(m => m.type === "err").map(m => m.text).join("\n");
+      addCodexMessage("system", `Found an issue in "${p.file.name}". Asking Codex to fix it...`);
+      renderCodexLog();
+      addCodexMessage("user", `My file "${p.file.name}" (${p.file.type}) has these problems:\n${errText}\n\nHere is the full current content:\n\`\`\`${p.file.type}\n${p.file.content}\n\`\`\`\nReply with ONLY the corrected full file content in a single code block.`);
+      const reply = await callCodex();
+      if (reply) {
+        addCodexMessage("assistant", reply);
+        renderCodexLog();
+        const { code } = splitCodeBlock(reply);
+        if (code) offerFileReplacement(p.file, code);
+      }
+      return;
+    }
+
+    if (problems.length > 0) {
+      addCodexMessage("system", "Still finding issues after a few tries — take a look with Run yourself, then click Finished again once it's clean.");
+      renderCodexLog();
+      return;
+    }
+
+    codexFixAttempts = 0;
+    addCodexMessage("system", "No problems found. Asking Codex for a name, description and icon...");
+    renderCodexLog();
+    addCodexMessage("user", `The site is finished. Reply with ONLY a JSON object like {"name": "...", "description": "...", "icon": "one of: ${ICON_CHOICES.join(", ")}"} describing this site based on what we've discussed.`);
+    const reply = await callCodex();
+    if (!reply) return;
+    addCodexMessage("assistant", reply);
+    renderCodexLog();
+
+    let parsed = {};
+    try { parsed = JSON.parse((reply.match(/\{[\s\S]*\}/) || [""])[0] || "{}"); } catch (e) { /* fall through to manual entry */ }
+
+    codexOverlay.classList.remove("is-open");
+    requireBirthday(() => {
+      requireAuth(() => {
+        siteName.value = parsed.name || siteName.value || "My CodeWeb site";
+        siteSlug.value = slugify(siteName.value);
+        siteDescription.value = parsed.description || siteDescription.value || "Built with CodeWeb.";
+        if (parsed.icon && ICON_CHOICES.includes(parsed.icon)) selectedIconKey = parsed.icon;
+        renderIconGrid();
+        updateDomainOptions();
+        publishOverlay.classList.add("is-open");
+        toast("Codex filled in your publish details — review, then click Done.");
+      });
+    });
+  }
+  el("codexFinish").addEventListener("click", codexHandleFinish);
 })();

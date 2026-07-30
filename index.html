@@ -51,6 +51,10 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3v12M7 8l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Publish
       </button>
+      <button class="btn btn-ghost" id="codexBtn" title="Codex">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3a9 9 0 100 18 9 9 0 000-18z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 10.5l-2 1.5 2 1.5M15 10.5l2 1.5-2 1.5M13 9l-2 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Codex
+      </button>
       <button class="auth-chip" id="authChip" title="Account">
         <span class="auth-avatar" id="authAvatar">G</span>
         <span class="auth-info">
@@ -302,6 +306,56 @@
   </div>
 </div>
 
+<!-- Codex (optional, bring-your-own OpenAI key) -->
+<div class="modal-overlay" id="codexOverlay">
+  <div class="modal modal-wide codex-modal" role="dialog" aria-modal="true" aria-labelledby="codexTitle">
+    <div class="tutorial-head">
+      <div>
+        <h2 id="codexTitle">Codex</h2>
+        <p class="modal-sub">An optional AI coding helper for this site.</p>
+      </div>
+      <button class="chrome-close" id="closeCodex" title="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <!-- Key setup -->
+    <div class="codex-view is-active" id="codexView-key">
+      <label class="field-label" for="codexKeyInput">Your OpenAI API key</label>
+      <input type="password" id="codexKeyInput" class="text-input" placeholder="sk-...">
+      <label class="field-label" for="codexModelInput">Model (optional)</label>
+      <input type="text" id="codexModelInput" class="text-input" placeholder="gpt-4o-mini">
+      <p class="hint">This is sent straight from your browser to OpenAI's API — it's never included in this site's code, never sent anywhere else, and is only saved in this browser's local storage. Get a key at platform.openai.com. You're billed by OpenAI for what you use.</p>
+      <button class="btn btn-accent auth-submit" id="saveCodexKey">Save and start</button>
+    </div>
+
+    <!-- Chat -->
+    <div class="codex-view" id="codexView-chat">
+      <div class="codex-log" id="codexLog"></div>
+      <div class="codex-input-row">
+        <input type="text" id="codexInput" class="text-input" placeholder="Tell Codex about your site, or ask for help...">
+        <button class="btn btn-accent" id="codexSend">Send</button>
+      </div>
+      <div class="codex-actions">
+        <button class="btn btn-ghost" id="codexForgetKey">Change API key</button>
+        <button class="btn btn-publish" id="codexFinish">My site is finished</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Codex garbled-code warning -->
+<div class="modal-overlay" id="codexWarnOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="codexWarnTitle">
+    <h2 id="codexWarnTitle">This code might be broken</h2>
+    <p class="modal-sub" id="codexWarnReason">Codex's suggestion looks incomplete or unbalanced.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="codexWarnCancel">Cancel</button>
+      <button class="btn btn-accent" id="codexWarnInsert">Add it anyway</button>
+    </div>
+  </div>
+</div>
+
 <!-- Auth modal -->
 <div class="modal-overlay" id="authOverlay">
   <div class="modal modal-wide auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -310,19 +364,6 @@
     <div class="auth-view is-active" id="authView-main">
       <h2 id="authTitle">Log in to CodeWeb</h2>
       <p class="modal-sub">You need an account to publish a site or open the Tutorial.</p>
-
-      <label class="field-label" for="authAge">Your age</label>
-      <input type="number" id="authAge" class="text-input" placeholder="e.g. 12" min="5" max="120">
-      <p class="hint" id="ageHint">Ages 5–8 go to CodeWeb Kids, a simpler site made for young learners.</p>
-
-      <div class="oauth-col">
-        <button class="oauth-btn" data-provider="Google"><span class="oauth-badge oauth-google">G</span>Continue with Google</button>
-        <button class="oauth-btn" data-provider="GitHub"><span class="oauth-badge oauth-github">gh</span>Continue with GitHub</button>
-        <button class="oauth-btn" data-provider="Apple"><span class="oauth-badge oauth-apple"></span>Continue with Apple</button>
-        <button class="oauth-btn" data-provider="DuckDuckGo"><span class="oauth-badge oauth-ddg">DDG</span>Continue with DuckDuckGo</button>
-      </div>
-
-      <div class="auth-divider"><span>or</span></div>
 
       <label class="field-label" for="authEmail">Email</label>
       <input type="email" id="authEmail" class="text-input" placeholder="you@example.com">

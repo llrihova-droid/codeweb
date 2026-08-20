@@ -29,7 +29,7 @@
      page's own scripts. So this doesn't claim to detect or
      block anything; it's the same kind of plain warning banner
      Facebook/Google/etc. print, telling people not to paste code
-     they don't understand, and pointing them at Codex instead.
+     they don't understand, and pointing them at CodeWeb Agent instead.
 
      CODEWEB_VERSION bumps by 1.00 on every future update to this
      file, per the versioning scheme requested (…5.00, 6.00,
@@ -39,7 +39,7 @@
   console.log(`💫 The only way to use a editor. Version: ${CODEWEB_VERSION}`);
   console.log("%cStop!", "color:#ff5d5d; font-size:46px; font-weight:800;");
   console.log(
-    "%cOnly paste code here if you understand exactly what it does. Code pasted from someone else — even code that looks harmless — can act on your account or your published sites. If you want help writing code, use Codex instead of pasting scripts from strangers.",
+    "%cOnly paste code here if you understand exactly what it does. Code pasted from someone else — even code that looks harmless — can act on your account or your published sites. If you want help writing code, use CodeWeb Agent instead of pasting scripts from strangers.",
     "font-size:14px; line-height:1.5;"
   );
 
@@ -62,6 +62,8 @@
     layers: `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l8 4.5-8 4.5-8-4.5L12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
     bolt: `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>`,
     compass: `<svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 9l-2 6-4 0 2-6 4 0z" fill="currentColor"/></svg>`,
+    python: `<svg viewBox="0 0 24 24" width="14" height="14"><text x="1" y="17" font-family="sans-serif" font-size="13" font-weight="800" fill="currentColor">Py</text></svg>`,
+    crown: `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 18h16l1-9-5 4-4-6-4 6-5-4 1 9z" fill="currentColor"/></svg>`,
   };
 
   const TYPE_META = {
@@ -71,6 +73,7 @@
     json: { label: "JSON", ext: "json" },
     cpp:  { label: "C++",  ext: "cpp"  },
     lua:  { label: "Lua",  ext: "lua"  },
+    python: { label: "Python", ext: "py" },
   };
 
   const TEMPLATES = {
@@ -80,6 +83,7 @@
     json: `{\n  "project": "CodeWeb",\n  "version": 1,\n  "files": ["index.html", "style.css", "app.js"]\n}\n`,
     cpp: `#include <iostream>\n\nint main() {\n  std::cout << "Hello from C++" << std::endl;\n  return 0;\n}\n`,
     lua: `-- Lua script\nlocal function greet(name)\n  print("Hello, " .. name)\nend\n\ngreet("CodeWeb")\n`,
+    python: `# Python — checked with the same lightweight syntax checker\n# as the other languages here, not actually executed in the\n# browser (there's no real Python interpreter running this tab).\ndef greet(name):\n    print(f"Hello, {name}")\n\ngreet("CodeWeb")\n`,
   };
 
   /* ---------------------------------------------------------
@@ -96,6 +100,8 @@
     "Best Developer Ever", "Pneudeveloper",
   ];
   function computeLevel(joinedAt) {
+    const override = localStorage.getItem("codeweb_level_override");
+    if (override) return override;
     const weeks = Math.floor((Date.now() - joinedAt) / (7 * 24 * 60 * 60 * 1000));
     const idx = Math.max(0, Math.min(weeks, LEVELS.length - 1));
     return LEVELS[idx];
@@ -347,6 +353,7 @@
     if (type === "js" || type === "cpp") return line.replace(/\/\/.*$/, "");
     if (type === "lua") return line.replace(/--(?!\[\[).*$/, "");
     if (type === "css") return line.replace(/\/\*.*?\*\//g, "");
+    if (type === "python") return line.replace(/#.*$/, "");
     if (type === "html") return line;
     return line;
   }
@@ -478,9 +485,11 @@
   const typeGrid = el("typeGrid");
   const newFileName = el("newFileName");
 
+  function isPythonUnlocked() { return localStorage.getItem("codeweb_python_unlocked") === "1"; }
+
   function renderTypeGrid() {
     typeGrid.innerHTML = "";
-    Object.keys(TYPE_META).forEach(type => {
+    Object.keys(TYPE_META).filter(type => type !== "python" || isPythonUnlocked()).forEach(type => {
       const opt = document.createElement("div");
       opt.className = "type-option" + (type === selectedNewType ? " is-selected" : "");
       opt.innerHTML = `${ICONS[type]}<span>${TYPE_META[type].label}</span>`;
@@ -1227,27 +1236,40 @@
   applyTheme(themeMode);
 
   /* ===========================================================
-     Codex — optional AI coding helper (bring-your-own OpenAI key)
+     CodeWeb Agent — optional AI coding helper (bring-your-own key)
 
      Honesty notes:
      - The API key is only ever stored in this browser's
-       localStorage and sent directly from the browser to
-       OpenAI's API. It is never part of this site's source and
-       never sent anywhere else.
+       localStorage and sent directly from the browser to the
+       chosen provider's API. It is never part of this site's
+       source and never sent anywhere else.
      - Every visitor pays for their own usage with their own key.
      - "Checking your files" and the bug-fix loop reuse the same
        real, lightweight syntax checker as the Run button — this
        isn't a second, separate "AI bug detector."
      - Publishing at the end still goes through the same real
        birthday/login gate and local-storage publish flow as the
-       manual Publish button; Codex only pre-fills the fields.
+       manual Publish button; the Agent only pre-fills the fields.
   =========================================================== */
-  const CODEX_SYSTEM_PROMPT = `You are Codex, a friendly AI coding assistant built into CodeWeb, a browser-based code editor. You are not ChatGPT — if asked who you are or what model you are, say you are Codex. Help the person plan and write their website (HTML, CSS, or JavaScript). If you don't yet know what their site is about, ask them. When you suggest code, put it in a single fenced code block labeled with the language (html, css, or javascript) and keep the rest of your reply short. When asked to fix a file, reply with ONLY one fenced code block containing the corrected full file content and nothing else. When asked for a name, description and icon, reply with ONLY a compact JSON object and nothing else.`;
+  const CODEX_SYSTEM_PROMPT = `You are CodeWeb Agent, a friendly AI coding assistant built into CodeWeb, a browser-based code editor. If asked which underlying AI model or company powers you, you can just say you're CodeWeb Agent, built into CodeWeb. Help the person plan and write their website (HTML, CSS, or JavaScript). If you don't yet know what their site is about, ask them. When you suggest code, put it in a single fenced code block labeled with the language (html, css, or javascript) and keep the rest of your reply short. When asked to fix a file, reply with ONLY one fenced code block containing the corrected full file content and nothing else. When asked for a name, description and icon, reply with ONLY a compact JSON object and nothing else.`;
 
-  const loadCodexKey = () => localStorage.getItem("codeweb_codex_key") || "";
-  const saveCodexKeyValue = (k) => localStorage.setItem("codeweb_codex_key", k);
-  const loadCodexModel = () => localStorage.getItem("codeweb_codex_model") || "gpt-4o-mini";
-  const saveCodexModel = (m) => localStorage.setItem("codeweb_codex_model", m);
+  const CODEX_PROVIDERS = {
+    openai: { label: "OpenAI", defaultModel: "gpt-4o-mini", keyPlaceholder: "sk-...",
+      hint: "This is sent straight from your browser to OpenAI's API — never included in this site's code, never sent anywhere else, only saved in this browser's local storage. Get a key at platform.openai.com." },
+    anthropic: { label: "Anthropic", defaultModel: "claude-3-5-haiku-latest", keyPlaceholder: "sk-ant-...",
+      hint: "This is sent straight from your browser to Anthropic's API — never included in this site's code, never sent anywhere else, only saved in this browser's local storage. Get a key at console.anthropic.com. Note: Anthropic's API may need to be called from a server in some setups — if requests fail here, that's why." },
+    gemini: { label: "Google Gemini", defaultModel: "gemini-1.5-flash", keyPlaceholder: "AIza...",
+      hint: "This is sent straight from your browser to Google's Gemini API — never included in this site's code, never sent anywhere else, only saved in this browser's local storage. Get a key at aistudio.google.com." },
+    openrouter: { label: "OpenRouter", defaultModel: "openai/gpt-4o-mini", keyPlaceholder: "sk-or-v1-...",
+      hint: "This is sent straight from your browser to OpenRouter's API — never included in this site's code, never sent anywhere else, only saved in this browser's local storage. Get a key at openrouter.ai. Every visitor uses their own key and pays for their own usage; a key shared in public site code would get drained by strangers within hours." },
+  };
+
+  const loadCodexProvider = () => localStorage.getItem("codeweb_agent_provider") || "openai";
+  const saveCodexProvider = (p) => localStorage.setItem("codeweb_agent_provider", p);
+  const loadCodexKey = () => localStorage.getItem(`codeweb_agent_key_${loadCodexProvider()}`) || "";
+  const saveCodexKeyValue = (k) => localStorage.setItem(`codeweb_agent_key_${loadCodexProvider()}`, k);
+  const loadCodexModel = () => localStorage.getItem(`codeweb_agent_model_${loadCodexProvider()}`) || CODEX_PROVIDERS[loadCodexProvider()].defaultModel;
+  const saveCodexModel = (m) => localStorage.setItem(`codeweb_agent_model_${loadCodexProvider()}`, m);
 
   let codexMessages = [];
   let codexFixAttempts = 0;
@@ -1255,12 +1277,26 @@
 
   const codexOverlay = el("codexOverlay");
   const codexWarnOverlay = el("codexWarnOverlay");
+  const codexProviderSelect = el("codexProviderSelect");
+
+  function refreshCodexProviderUI() {
+    const provider = loadCodexProvider();
+    codexProviderSelect.value = provider;
+    el("codexKeyInput").placeholder = CODEX_PROVIDERS[provider].keyPlaceholder;
+    el("codexModelInput").placeholder = CODEX_PROVIDERS[provider].defaultModel;
+    el("codexKeyHint").textContent = CODEX_PROVIDERS[provider].hint;
+  }
+  codexProviderSelect.addEventListener("change", () => {
+    saveCodexProvider(codexProviderSelect.value);
+    refreshCodexProviderUI();
+  });
 
   function showCodexView(view) {
     document.querySelectorAll(".codex-view").forEach(v => v.classList.toggle("is-active", v.id === `codexView-${view}`));
   }
   function openCodex() {
     codexOverlay.classList.add("is-open");
+    refreshCodexProviderUI();
     if (loadCodexKey()) {
       showCodexView("chat");
       if (codexMessages.length === 0) codexBootstrap();
@@ -1274,7 +1310,7 @@
 
   el("saveCodexKey").addEventListener("click", () => {
     const key = el("codexKeyInput").value.trim();
-    if (!key) { toast("Paste your OpenAI API key first."); return; }
+    if (!key) { toast("Paste your API key first."); return; }
     saveCodexKeyValue(key);
     const model = el("codexModelInput").value.trim();
     if (model) saveCodexModel(model);
@@ -1282,7 +1318,7 @@
     if (codexMessages.length === 0) codexBootstrap();
   });
   el("codexForgetKey").addEventListener("click", () => {
-    localStorage.removeItem("codeweb_codex_key");
+    localStorage.removeItem(`codeweb_agent_key_${loadCodexProvider()}`);
     el("codexKeyInput").value = "";
     showCodexView("key");
   });
@@ -1323,32 +1359,65 @@
   }
 
   function codexBootstrap() {
-    addCodexMessage("system", "Codex only sees this chat plus whatever file content you send it — it can't act on its own.");
-    addCodexMessage("assistant", "Hi, I'm Codex! What's your site about?");
+    addCodexMessage("system", "CodeWeb Agent only sees this chat plus whatever file content you send it — it can't act on its own.");
+    addCodexMessage("assistant", "Hi, I'm CodeWeb Agent! What's your site about?");
     renderCodexLog();
   }
 
+  // Each provider has a different request/response shape. This
+  // normalizes all four down to "give me back the reply text."
   async function callCodex() {
+    const provider = loadCodexProvider();
     const key = loadCodexKey();
-    if (!key) { toast("Add your OpenAI API key first."); showCodexView("key"); return null; }
-    const payloadMessages = [
-      { role: "system", content: CODEX_SYSTEM_PROMPT },
-      ...codexMessages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.content })),
-    ];
+    if (!key) { toast("Add your API key first."); showCodexView("key"); return null; }
+    const history = codexMessages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: m.content }));
+
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
-        body: JSON.stringify({ model: loadCodexModel(), messages: payloadMessages, temperature: 0.6 }),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`OpenAI API error (${res.status}): ${errText.slice(0, 200)}`);
+      if (provider === "openai" || provider === "openrouter") {
+        const url = provider === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://openrouter.ai/api/v1/chat/completions";
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+          body: JSON.stringify({ model: loadCodexModel(), messages: [{ role: "system", content: CODEX_SYSTEM_PROMPT }, ...history], temperature: 0.6 }),
+        });
+        if (!res.ok) throw new Error(`${CODEX_PROVIDERS[provider].label} API error (${res.status}): ${(await res.text()).slice(0, 200)}`);
+        const data = await res.json();
+        return ((data.choices && data.choices[0] && data.choices[0].message.content) || "").trim();
       }
-      const data = await res.json();
-      return (data.choices && data.choices[0] && data.choices[0].message.content || "").trim();
+
+      if (provider === "anthropic") {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({ model: loadCodexModel(), max_tokens: 1024, system: CODEX_SYSTEM_PROMPT, messages: history }),
+        });
+        if (!res.ok) throw new Error(`Anthropic API error (${res.status}): ${(await res.text()).slice(0, 200)}`);
+        const data = await res.json();
+        return ((data.content && data.content[0] && data.content[0].text) || "").trim();
+      }
+
+      if (provider === "gemini") {
+        const model = loadCodexModel();
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const contents = history.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents, systemInstruction: { parts: [{ text: CODEX_SYSTEM_PROMPT }] } }),
+        });
+        if (!res.ok) throw new Error(`Gemini API error (${res.status}): ${(await res.text()).slice(0, 200)}`);
+        const data = await res.json();
+        return ((data.candidates && data.candidates[0] && data.candidates[0].content.parts[0].text) || "").trim();
+      }
+
+      return null;
     } catch (err) {
-      addCodexMessage("system", `Codex couldn't reach OpenAI: ${err.message}`);
+      addCodexMessage("system", `CodeWeb Agent couldn't reach ${CODEX_PROVIDERS[provider].label}: ${err.message}`);
       renderCodexLog();
       return null;
     }
@@ -1378,13 +1447,13 @@
     for (const ch of code) {
       if (pairs[ch]) stack.push(ch);
       else if (closers[ch]) {
-        if (stack.pop() !== closers[ch]) return { garbled: true, reason: `Codex's suggestion has an unexpected '${ch}' with no matching '${closers[ch]}'.` };
+        if (stack.pop() !== closers[ch]) return { garbled: true, reason: `CodeWeb Agent's suggestion has an unexpected '${ch}' with no matching '${closers[ch]}'.` };
       }
     }
-    if (stack.length > 0) return { garbled: true, reason: `Codex's suggestion never closes a '${stack[stack.length - 1]}'.` };
+    if (stack.length > 0) return { garbled: true, reason: `CodeWeb Agent's suggestion never closes a '${stack[stack.length - 1]}'.` };
     const sq = (code.match(/'/g) || []).length, dq = (code.match(/"/g) || []).length;
-    if (sq % 2 !== 0 || dq % 2 !== 0) return { garbled: true, reason: "Codex's suggestion has an unmatched quote." };
-    if (code.trim().length < 3) return { garbled: true, reason: "Codex's suggestion looks too short to be real code." };
+    if (sq % 2 !== 0 || dq % 2 !== 0) return { garbled: true, reason: "CodeWeb Agent's suggestion has an unmatched quote." };
+    if (code.trim().length < 3) return { garbled: true, reason: "CodeWeb Agent's suggestion looks too short to be real code." };
     return { garbled: false, reason: "" };
   }
 
@@ -1457,7 +1526,7 @@
       codexFixAttempts++;
       const p = problems[0];
       const errText = p.result.messages.filter(m => m.type === "err").map(m => m.text).join("\n");
-      addCodexMessage("system", `Found an issue in "${p.file.name}". Asking Codex to fix it...`);
+      addCodexMessage("system", `Found an issue in "${p.file.name}". Asking CodeWeb Agent to fix it...`);
       renderCodexLog();
       addCodexMessage("user", `My file "${p.file.name}" (${p.file.type}) has these problems:\n${errText}\n\nHere is the full current content:\n\`\`\`${p.file.type}\n${p.file.content}\n\`\`\`\nReply with ONLY the corrected full file content in a single code block.`);
       const reply = await callCodex();
@@ -1477,7 +1546,7 @@
     }
 
     codexFixAttempts = 0;
-    addCodexMessage("system", "No problems found. Asking Codex for a name, description and icon...");
+    addCodexMessage("system", "No problems found. Asking CodeWeb Agent for a name, description and icon...");
     renderCodexLog();
     addCodexMessage("user", `The site is finished. Reply with ONLY a JSON object like {"name": "...", "description": "...", "icon": "one of: ${ICON_CHOICES.join(", ")}"} describing this site based on what we've discussed.`);
     const reply = await callCodex();
@@ -1498,9 +1567,180 @@
         renderIconGrid();
         updateDomainOptions();
         publishOverlay.classList.add("is-open");
-        toast("Codex filled in your publish details — review, then click Done.");
+        toast("CodeWeb Agent filled in your publish details — review, then click Done.");
       });
     });
   }
   el("codexFinish").addEventListener("click", codexHandleFinish);
+
+  /* ===========================================================
+     Promo Codes
+
+     All effects here are real and local to this browser — a
+     level "boost" just sets a display override, the Python
+     unlock just reveals an extra Add File option, and the
+     YouTube code just opens a real link. The one code from the
+     original request that claimed a free/unlimited-credits
+     reward from OpenRouter is left out and replaced with an
+     in-app-only reward instead, since renaming an API key does
+     nothing to a real account's billing — that claim would have
+     been false.
+  =========================================================== */
+  const PROMO_CODES = {
+    LEVELBOOST: () => {
+      localStorage.setItem("codeweb_level_override", "Awesome Skill");
+      renderAuthChip();
+      return 'Congrats! You are advancing to the level of "Awesome Skill"!';
+    },
+    RECIEVEDNEWSCRIPTLANGUAGE: () => {
+      localStorage.setItem("codeweb_python_unlocked", "1");
+      return "Congrats! You have been awarded Python as a programming language for an entire year!";
+    },
+    "67ISTRASH": () => {
+      localStorage.setItem("codeweb_level_override", "Good Skill");
+      renderAuthChip();
+      return 'Congrats! You are advancing to the level of "Good Skill"!';
+    },
+    OURCHANNEL: () => {
+      window.open("https://www.youtube.com/@EmpressoReal", "_blank", "noopener");
+      return "Opening the @EmpressoReal channel in a new tab...";
+    },
+    YOUARESOLUCKY: () => {
+      localStorage.setItem("codeweb_lucky_unlocked", "1");
+      return "Congrats! You've unlocked an exclusive crown icon for your published sites!";
+    },
+  };
+
+  const promoOverlay = el("promoOverlay");
+  el("promoBtn").addEventListener("click", () => promoOverlay.classList.add("is-open"));
+  el("closePromo").addEventListener("click", () => promoOverlay.classList.remove("is-open"));
+  promoOverlay.addEventListener("click", (e) => { if (e.target === promoOverlay) promoOverlay.classList.remove("is-open"); });
+
+  el("redeemPromoBtn").addEventListener("click", () => {
+    const raw = el("promoCodeInput").value.trim();
+    const code = Object.keys(PROMO_CODES).find(c => c.toLowerCase() === raw.toLowerCase());
+    if (!code) { toast("That code doesn't look right."); return; }
+    const message = PROMO_CODES[code]();
+    toast(message);
+    el("promoCodeInput").value = "";
+  });
+  el("promoCodeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") el("redeemPromoBtn").click(); });
+
+  /* ===========================================================
+     My Projects — export/import as a real .zip
+
+     Uses JSZip (loaded from cdnjs in index.html) to actually
+     build and read zip files in the browser. Nothing here is
+     simulated: Export really writes a .zip you can download, and
+     Import really unpacks a dropped .zip and loads its files —
+     there's just no OS-level "installer," because a webpage
+     can't install anything on your computer; the honest
+     equivalent is unpacking it automatically the moment you drop
+     it in, which is what this does.
+  =========================================================== */
+  const projectsOverlay = el("projectsOverlay");
+  el("projectsBtn").addEventListener("click", () => projectsOverlay.classList.add("is-open"));
+  el("closeProjects").addEventListener("click", () => projectsOverlay.classList.remove("is-open"));
+  projectsOverlay.addEventListener("click", (e) => { if (e.target === projectsOverlay) projectsOverlay.classList.remove("is-open"); });
+
+  function randomProjectId() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let out = "";
+    for (let i = 0; i < 8; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
+
+  const PROJECT_README = `# READ THIS
+Hello, user! Please place any .html file in this area or any CodeWeb project folder.
+The folders are initialized with unique IDs, and they correspond to the project you have created.`;
+
+  el("exportProjectBtn").addEventListener("click", async () => {
+    if (typeof JSZip === "undefined") { toast("The zip library didn't load — check your connection and try again."); return; }
+    const id = `codeweb-id-${randomProjectId()}`;
+    const zip = new JSZip();
+    const folder = zip.folder(id);
+    files.forEach(f => folder.file(f.name, f.content));
+    zip.file("README.md", PROJECT_README);
+    const blob = await zip.generateAsync({ type: "blob" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "codeweb-projects.zip";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast("Downloaded codeweb-projects.zip");
+  });
+
+  function inferTypeFromExt(name) {
+    const ext = name.split(".").pop().toLowerCase();
+    const match = Object.entries(TYPE_META).find(([, meta]) => meta.ext === ext);
+    return match ? match[0] : null;
+  }
+
+  async function loadProjectFromZip(file) {
+    if (typeof JSZip === "undefined") { toast("The zip library didn't load — check your connection and try again."); return; }
+    try {
+      const buffer = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(buffer);
+      const entries = Object.values(zip.files).filter(f => !f.dir && !f.name.endsWith("README.md"));
+      const projectFolder = entries.find(f => /^codeweb-id-[^/]+\//.test(f.name));
+      const relevant = projectFolder
+        ? entries.filter(f => f.name.startsWith(projectFolder.name.split("/")[0] + "/"))
+        : entries.filter(f => inferTypeFromExt(f.name));
+
+      if (relevant.length === 0) { toast("Couldn't find any project files in that zip."); return; }
+
+      const loaded = [];
+      for (const entry of relevant) {
+        const shortName = entry.name.split("/").pop();
+        const type = inferTypeFromExt(shortName);
+        if (!type) continue;
+        const content = await entry.async("string");
+        loaded.push({ id: uid(), name: shortName, type, content });
+      }
+      if (loaded.length === 0) { toast("Couldn't find any recognizable files in that zip."); return; }
+
+      files = loaded;
+      activeId = files[0].id;
+      renderTabs();
+      loadActiveFile();
+      projectsOverlay.classList.remove("is-open");
+      toast(`Imported ${loaded.length} file${loaded.length === 1 ? "" : "s"} from the zip.`);
+    } catch (err) {
+      toast("Couldn't read that zip file.");
+    }
+  }
+
+  function loadProjectFromHtmlFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      files = [{ id: uid(), name: file.name, type: "html", content: reader.result }];
+      activeId = files[0].id;
+      renderTabs();
+      loadActiveFile();
+      projectsOverlay.classList.remove("is-open");
+      toast(`Imported ${file.name}.`);
+    };
+    reader.onerror = () => toast("Couldn't read that file.");
+    reader.readAsText(file);
+  }
+
+  el("projectImportInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.name.toLowerCase().endsWith(".zip")) loadProjectFromZip(file);
+    else if (file.name.toLowerCase().endsWith(".html")) loadProjectFromHtmlFile(file);
+    else toast("Please choose a .zip or .html file.");
+    e.target.value = "";
+  });
+
+  const projectDropLabel = el("projectDropLabel");
+  ["dragover", "dragenter"].forEach(evt => projectDropLabel.addEventListener(evt, (e) => { e.preventDefault(); }));
+  projectDropLabel.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (file.name.toLowerCase().endsWith(".zip")) loadProjectFromZip(file);
+    else if (file.name.toLowerCase().endsWith(".html")) loadProjectFromHtmlFile(file);
+    else toast("Please drop a .zip or .html file.");
+  });
 })();

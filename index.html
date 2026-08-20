@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -51,9 +52,17 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3v12M7 8l5-5 5 5M5 21h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Publish
       </button>
-      <button class="btn btn-ghost" id="codexBtn" title="Codex">
+      <button class="btn btn-ghost" id="codexBtn" title="CodeWeb Agent">
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3a9 9 0 100 18 9 9 0 000-18z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 10.5l-2 1.5 2 1.5M15 10.5l2 1.5-2 1.5M13 9l-2 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Codex
+        Agent
+      </button>
+      <button class="btn btn-ghost" id="projectsBtn" title="My Projects">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        Projects
+      </button>
+      <button class="btn btn-ghost" id="promoBtn" title="Promo Codes">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M20 12l-3-3H7l-3 3 3 3h10l3-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="9" cy="12" r="1.3" fill="currentColor"/></svg>
+        Promo Codes
       </button>
       <button class="auth-chip" id="authChip" title="Account">
         <span class="auth-avatar" id="authAvatar">G</span>
@@ -306,12 +315,12 @@
   </div>
 </div>
 
-<!-- Codex (optional, bring-your-own OpenAI key) -->
+<!-- CodeWeb Agent (optional, bring-your-own API key) -->
 <div class="modal-overlay" id="codexOverlay">
   <div class="modal modal-wide codex-modal" role="dialog" aria-modal="true" aria-labelledby="codexTitle">
     <div class="tutorial-head">
       <div>
-        <h2 id="codexTitle">Codex</h2>
+        <h2 id="codexTitle">CodeWeb Agent</h2>
         <p class="modal-sub">An optional AI coding helper for this site.</p>
       </div>
       <button class="chrome-close" id="closeCodex" title="Close">
@@ -321,11 +330,18 @@
 
     <!-- Key setup -->
     <div class="codex-view is-active" id="codexView-key">
-      <label class="field-label" for="codexKeyInput">Your OpenAI API key</label>
+      <label class="field-label" for="codexProviderSelect">Provider</label>
+      <select id="codexProviderSelect" class="text-input">
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="gemini">Google Gemini</option>
+        <option value="openrouter">OpenRouter</option>
+      </select>
+      <label class="field-label" for="codexKeyInput">Your API key</label>
       <input type="password" id="codexKeyInput" class="text-input" placeholder="sk-...">
       <label class="field-label" for="codexModelInput">Model (optional)</label>
-      <input type="text" id="codexModelInput" class="text-input" placeholder="gpt-4o-mini">
-      <p class="hint">This is sent straight from your browser to OpenAI's API — it's never included in this site's code, never sent anywhere else, and is only saved in this browser's local storage. Get a key at platform.openai.com. You're billed by OpenAI for what you use.</p>
+      <input type="text" id="codexModelInput" class="text-input" placeholder="e.g. gpt-4o-mini">
+      <p class="hint" id="codexKeyHint">This is sent straight from your browser to the provider's API — it's never included in this site's code, never sent anywhere else, and is only saved in this browser's local storage. You're billed by the provider for what you use.</p>
       <button class="btn btn-accent auth-submit" id="saveCodexKey">Save and start</button>
     </div>
 
@@ -333,7 +349,7 @@
     <div class="codex-view" id="codexView-chat">
       <div class="codex-log" id="codexLog"></div>
       <div class="codex-input-row">
-        <input type="text" id="codexInput" class="text-input" placeholder="Tell Codex about your site, or ask for help...">
+        <input type="text" id="codexInput" class="text-input" placeholder="Tell CodeWeb Agent about your site, or ask for help...">
         <button class="btn btn-accent" id="codexSend">Send</button>
       </div>
       <div class="codex-actions">
@@ -344,15 +360,72 @@
   </div>
 </div>
 
-<!-- Codex garbled-code warning -->
+<!-- CodeWeb Agent garbled-code warning -->
 <div class="modal-overlay" id="codexWarnOverlay">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="codexWarnTitle">
     <h2 id="codexWarnTitle">This code might be broken</h2>
-    <p class="modal-sub" id="codexWarnReason">Codex's suggestion looks incomplete or unbalanced.</p>
+    <p class="modal-sub" id="codexWarnReason">CodeWeb Agent's suggestion looks incomplete or unbalanced.</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="codexWarnCancel">Cancel</button>
       <button class="btn btn-accent" id="codexWarnInsert">Add it anyway</button>
     </div>
+  </div>
+</div>
+
+<!-- My Projects: export/import as a real .zip -->
+<div class="modal-overlay" id="projectsOverlay">
+  <div class="modal modal-wide tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="projectsTitle">
+    <div class="tutorial-head">
+      <div>
+        <h2 id="projectsTitle">My Projects</h2>
+        <p class="modal-sub">Move this project between devices as a real .zip file.</p>
+      </div>
+      <button class="chrome-close" id="closeProjects" title="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <label class="field-label">Export</label>
+    <p class="hint">Downloads everything currently open as codeweb-projects.zip — a codeweb-id-XXXXXXXX folder with your files, plus a README.</p>
+    <button class="btn btn-accent auth-submit" id="exportProjectBtn">Download codeweb-projects.zip</button>
+
+    <label class="field-label" style="margin-top:18px;">Import</label>
+    <label class="upload-drop upload-drop-compact" id="projectDropLabel">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Drop a .zip or .html file here, or click to choose one</span>
+      <small>The zip is read and unpacked right here in your browser — nothing to extract yourself first.</small>
+      <input type="file" accept=".zip,.html" id="projectImportInput" style="display:none">
+    </label>
+    <p class="hint">Importing replaces the files currently open in the editor.</p>
+  </div>
+</div>
+
+<!-- Promo Codes -->
+<div class="modal-overlay" id="promoOverlay">
+  <div class="modal modal-wide tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="promoTitle">
+    <div class="tutorial-head">
+      <div>
+        <h2 id="promoTitle">Promo Codes</h2>
+        <p class="modal-sub">Have a code? Type it in below.</p>
+      </div>
+      <button class="chrome-close" id="closePromo" title="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="url-row">
+      <input type="text" id="promoCodeInput" class="text-input" placeholder="Enter a code">
+      <button class="btn btn-accent" id="redeemPromoBtn" style="border-radius: var(--radius-sm); margin-left:8px;">Redeem</button>
+    </div>
+
+    <label class="field-label" style="margin-top:18px;">Available codes</label>
+    <ul class="promo-list">
+      <li><strong>LEVELBOOST</strong> — jump your level to "Awesome Skill"</li>
+      <li><strong>RECIEVEDNEWSCRIPTLANGUAGE</strong> — unlocks Python as a file type for a year</li>
+      <li><strong>67ISTRASH</strong> — jump your level to "Good Skill"</li>
+      <li><strong>OURCHANNEL</strong> — opens the @EmpressoReal YouTube channel</li>
+      <li><strong>YOUARESOLUCKY</strong> — a surprise in-app reward</li>
+    </ul>
   </div>
 </div>
 

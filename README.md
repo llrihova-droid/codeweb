@@ -25,3 +25,8 @@ CodeWeb supports both:
    "Add file" now uses this approach out of the box.
 
 Open either example in the editor and click **Run** to see it rendered.
+
+# 🚀 CODEWEB 2.0 UPDATE
+1. The Codex agent is updated.
+2. Promo codes are added.
+3. There is a new page that is individually so cool. 
